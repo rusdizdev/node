@@ -1,0 +1,50 @@
+name: My node
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup-node-tunnel:
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+    - name: Check out the repository
+      uses: actions/checkout@v2
+
+    - name: Download and Install Playit
+      run: |
+        $playitPath = "$env:USERPROFILE\playit.exe"
+        $playitURL = "https://github.com/playit-cloud/playit-agent/releases/download/v0.15.26/playit-windows-x86_64-signed.exe"
+        
+        Invoke-WebRequest -Uri $playitURL -OutFile $playitPath
+        Start-Sleep -Seconds 5
+        
+        # Pastikan Playit berhasil diunduh sebelum melanjutkan
+        if (-Not (Test-Path $playitPath)) {
+            Write-Error "Playit gagal diunduh!"
+            exit 1
+        }
+        
+    - name: Enable TS
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+        Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "p@ssw0rd!" -Force)
+
+    - name: Start Playit and Set Up My node
+      env:
+        PLAYIT_AUTH_KEY: ${{ secrets.PL }}
+      run: |
+        $playitPath = "$env:USERPROFILE\playit.exe"
+        
+        # Jalankan Playit dengan auth key
+        Try {
+            Start-Process -FilePath $playitPath -ArgumentList "--secret $env:PLAYIT_AUTH_KEY" -NoNewWindow -Wait
+            Start-Process -FilePath $playitPath -NoNewWindow
+            Write-Output "Playit berhasil dijalankan."
+        } Catch {
+            Write-Error "Gagal menjalankan Playit: $_"
+            exit 1
+        }
